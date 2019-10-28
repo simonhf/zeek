@@ -83,6 +83,17 @@ public:
 	virtual double NextTimestamp(double* network_time) = 0;
 
 	/**
+	 * Return the next timeout value for this source. This should be
+	 * overridden by source classes where they have a timeout value
+	 * that can wake up the poll.
+	 *
+	 * @return A value for the next time that the source thinks the
+	 * poll should time out in seconds from the current time. Return
+	 * -1 if this should should not be considered.
+	 */
+	virtual double GetNextTimeout() { return -1; }
+
+	/**
 	 * Processes and consumes next data item.
 	 *
 	 * This method will be called only when either IsIdle() returns
@@ -100,7 +111,7 @@ public:
 	 * Can be overridden by derived classes.
 	 *
 	 * @return The tag, or null for the global timer manager.
-	 * 
+	 *
 	 */
 	virtual TimerMgr::Tag* GetCurrentTag()	{ return 0; }
 

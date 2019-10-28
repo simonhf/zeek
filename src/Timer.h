@@ -104,6 +104,7 @@ public:
 	double LastAdvance() const	{ return last_advance; }
 
 	static unsigned int* CurrentTimers()	{ return current_timers; }
+	virtual double GetNextTimeout() { return -1; }
 
 protected:
 	explicit TimerMgr(const Tag& arg_tag)
@@ -138,6 +139,7 @@ public:
 	int Size() const override { return q->Size(); }
 	int PeakSize() const override { return q->PeakSize(); }
 	uint64_t CumulativeNum() const override { return q->CumulativeNum(); }
+	double GetNextTimeout() override;
 
 protected:
 	int DoAdvance(double t, int max_expire) override;

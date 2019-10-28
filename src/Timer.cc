@@ -144,3 +144,12 @@ void PQ_TimerMgr::Remove(Timer* timer)
 	--current_timers[timer->Type()];
 	delete timer;
 	}
+
+double PQ_TimerMgr::GetNextTimeout()
+	{
+	Timer* top = Top();
+	if ( top )
+		return std::max(0.0, top->Time() - ::network_time);
+
+	return -1;
+	}

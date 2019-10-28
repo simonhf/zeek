@@ -93,6 +93,21 @@ double Manager::NextTimestamp(double* network_time)
 	return -1.0;
 	}
 
+int Manager::GetNextTimeout()
+	{
+	if ( ::network_time )
+		{
+		if ( ! next_beat )
+			next_beat = ::network_time + BifConst::Threading::heartbeat_interval;
+		else if ( network_time >= next_beat )
+			return 0;
+
+		return static_cast<int>((next_beat - ::network_time) * 1000);
+		}
+
+	return -1;
+	}
+
 void Manager::KillThreads()
 	{
 	DBG_LOG(DBG_THREADING, "Killing threads ...");
@@ -192,5 +207,3 @@ const threading::Manager::msg_stats_list& threading::Manager::GetMsgThreadStats(
 
 	return stats;
 	}
-
-

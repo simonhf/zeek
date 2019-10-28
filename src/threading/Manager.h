@@ -113,6 +113,11 @@ protected:
 	/**
 	 * Part of the IOSource interface.
 	 */
+	int GetNextTimeout() override;
+
+	/**
+	 * Part of the IOSource interface.
+	 */
 	void Process() override;
 
 	/**
