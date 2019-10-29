@@ -2,8 +2,12 @@
 
 #pragma once
 
+#include <poll.h>
 #include <string>
 #include <list>
+#include <map>
+#include <vector>
+#include <set>
 #include "iosource/FD_Set.h"
 
 namespace iosource {
@@ -95,22 +99,13 @@ public:
 	 */
 	PktDumper* OpenPktDumper(const std::string& path, bool append);
 
-private:
-	/**
-	 * When looking for a source with something to process, every
-	 * SELECT_FREQUENCY calls we will go ahead and block on a select().
-	 */
-	static const int SELECT_FREQUENCY = 25;
+	std::set<IOSource*> FindReadySources(bool& timer_expired);
 
-	/**
-	 * Microseconds to wait in an empty select if no source is ready.
-	 */
-	static const int SELECT_TIMEOUT = 50;
+private:
 
 	void Register(PktSrc* src);
 	void RemoveAll();
 
-	unsigned int call_count;
 	int dont_counts;
 
 	struct Source {
@@ -138,6 +133,9 @@ private:
 
 	PktSrcList pkt_srcs;
 	PktDumperList pkt_dumpers;
+
+	std::vector<pollfd> poll_fds;
+	std::map<int, Source*> fd_map;
 };
 
 }
