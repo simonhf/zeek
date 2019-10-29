@@ -442,6 +442,8 @@ void DNS_Mgr::Init()
 
 	if ( ! nb_dns )
 		reporter->Warning("problem initializing NB-DNS: %s", err);
+	else
+		iosource_mgr->RegisterFd(nb_dns_fd(nb_dns), this);
 
 	did_init = true;
 	}
@@ -1512,4 +1514,3 @@ void DNS_Mgr::GetStats(Stats* stats)
 	stats->cached_addresses = addr_mappings.size();
 	stats->cached_texts = text_mappings.size();
 	}
-

@@ -423,6 +423,37 @@ PktDumper* Manager::OpenPktDumper(const string& path, bool append)
 	return pd;
 	}
 
+void Manager::RegisterFd(int fd, IOSource* src)
+	{
+	if ( src == nullptr )
+		return;
+
+	auto entry = std::find_if(poll_fds.begin(), poll_fds.end(),
+		[fd](const pollfd &entry) -> bool { return entry.fd == fd; });
+	if ( entry == poll_fds.end() )
+		{
+		DBG_LOG(DBG_MAINLOOP, "Registering fd %d from %s", fd, src->Tag());
+		pollfd pfd;
+		pfd.fd = fd;
+		pfd.events = POLLIN;
+		poll_fds.push_back(pfd);
+		fd_map[fd] = src;
+		}
+	}
+
+void Manager::UnregisterFd(int fd)
+	{
+	auto entry = std::find_if(poll_fds.begin(), poll_fds.end(),
+		[fd](const pollfd &entry) -> bool { return entry.fd == fd; });
+
+	if ( entry != poll_fds.end() )
+		{
+		DBG_LOG(DBG_MAINLOOP, "Unregistering fd %d", fd);
+		poll_fds.erase(entry);
+		fd_map.erase(fd);
+		}
+	}
+
 void Manager::Source::SetFds(fd_set* read, fd_set* write, fd_set* except,
                              int* maxx) const
 	{

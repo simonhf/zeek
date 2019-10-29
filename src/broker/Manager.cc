@@ -209,11 +209,17 @@ void Manager::InitPostScript()
 
 	auto cqs = get_option("Broker::congestion_queue_size")->AsCount();
 	bstate = std::make_shared<BrokerState>(std::move(config), cqs);
+
+	iosource_mgr->RegisterFd(bstate->subscriber.fd(), this);
+	iosource_mgr->RegisterFd(bstate->status_subscriber.fd(), this);
 	}
 
 void Manager::Terminate()
 	{
 	FlushLogBuffers();
+
+	iosource_mgr->UnregisterFd(bstate->subscriber.fd());
+	iosource_mgr->UnregisterFd(bstate->status_subscriber.fd());
 
 	vector<string> stores_to_close;
 
@@ -1484,6 +1490,7 @@ StoreHandleVal* Manager::MakeMaster(const string& name, broker::backend type,
 	Ref(handle);
 
 	data_stores.emplace(name, handle);
+	iosource_mgr->RegisterFd(handle->proxy.mailbox().descriptor(), this);
 
 	if ( bstate->endpoint.use_real_time() )
 		return handle;
@@ -1520,6 +1527,7 @@ StoreHandleVal* Manager::MakeClone(const string& name, double resync_interval,
 	Ref(handle);
 
 	data_stores.emplace(name, handle);
+	iosource_mgr->RegisterFd(handle->proxy.mailbox().descriptor(), this);
 
 	return handle;
 	}
@@ -1537,6 +1545,8 @@ bool Manager::CloseStore(const string& name)
 	auto s = data_stores.find(name);
 	if ( s == data_stores.end() )
 		return false;
+
+	iosource_mgr->UnregisterFd(s->second->proxy.mailbox().descriptor());
 
 	for ( auto i = pending_queries.begin(); i != pending_queries.end(); )
 		if ( i->second->Store().name() == name )

@@ -101,6 +101,9 @@ public:
 
 	std::set<IOSource*> FindReadySources(bool& timer_expired);
 
+	void RegisterFd(int fd, IOSource* src);
+	void UnregisterFd(int fd);
+
 private:
 
 	void Register(PktSrc* src);
@@ -135,7 +138,7 @@ private:
 	PktDumperList pkt_dumpers;
 
 	std::vector<pollfd> poll_fds;
-	std::map<int, Source*> fd_map;
+	std::map<int, IOSource*> fd_map;
 };
 
 }

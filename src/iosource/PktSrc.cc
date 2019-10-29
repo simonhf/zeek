@@ -109,8 +109,17 @@ void PktSrc::Opened(const Properties& arg_props)
 		return;
 		}
 
+
 	if ( props.is_live )
+		{
 		Info(fmt("listening on %s\n", props.path.c_str()));
+
+		// We only register the file descriptor if we're in live
+		// mode because libpcap's file descriptor for trace files
+		// isn't a reliable way to know whether we actually have
+		// data to read.
+		iosource_mgr->RegisterFd(props.selectable_fd, this);
+		}
 
 	DBG_LOG(DBG_PKTIO, "Opened source %s", props.path.c_str());
 	}
@@ -118,6 +127,7 @@ void PktSrc::Opened(const Properties& arg_props)
 void PktSrc::Closed()
 	{
 	SetClosed(true);
+	iosource_mgr->UnregisterFd(props.selectable_fd);
 
 	DBG_LOG(DBG_PKTIO, "Closed source %s", props.path.c_str());
 	}
