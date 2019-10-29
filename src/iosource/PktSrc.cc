@@ -248,7 +248,7 @@ void PktSrc::Process()
 			net_packet_dispatch(current_packet.time, &current_packet, this);
 		}
 
-	have_packet = 0;
+	have_packet = false;
 	DoneWithPacket();
 	}
 
@@ -269,7 +269,7 @@ bool PktSrc::ExtractNextPacketInternal()
 	if ( net_is_processing_suspended() && first_timestamp )
 		{
 		SetIdle(true);
-		return 0;
+		return false;
 		}
 
 	if ( pseudo_realtime )
@@ -280,7 +280,7 @@ bool PktSrc::ExtractNextPacketInternal()
 		if ( current_packet.time < 0 )
 			{
 			Weird("negative_packet_timestamp", &current_packet);
-			return 0;
+			return false;
 			}
 
 		if ( ! first_timestamp )
@@ -288,7 +288,7 @@ bool PktSrc::ExtractNextPacketInternal()
 
 		SetIdle(false);
 		have_packet = true;
-		return 1;
+		return true;
 		}
 
 	if ( pseudo_realtime && ! IsOpen() )
@@ -298,7 +298,7 @@ bool PktSrc::ExtractNextPacketInternal()
 		}
 
 	SetIdle(true);
-	return 0;
+	return false;
 	}
 
 bool PktSrc::PrecompileBPFFilter(int index, const std::string& filter)
@@ -321,7 +321,7 @@ bool PktSrc::PrecompileBPFFilter(int index, const std::string& filter)
 		Error(msg);
 
 		delete code;
-		return 0;
+		return false;
 		}
 
 	// Store it in vector.
@@ -368,4 +368,23 @@ bool PktSrc::GetCurrentPacket(const Packet** pkt)
 
 	*pkt = &current_packet;
 	return true;
+	}
+
+double PktSrc::GetNextTimeout()
+	{
+	// If we're live we want poll to do what it has to with the file descriptor. If we're not live
+	// but we're not in pseudo-realtime mode, let the loop just spin as fast as it can. If we're
+	// in pseudo-realtime mode, find the next time that a packet is ready and have poll block until
+	// then.
+	if ( IsLive() || net_is_processing_suspended() )
+		return -1;
+	else if ( ! pseudo_realtime )
+		return 0;
+
+	if ( ! have_packet )
+		ExtractNextPacketInternal();
+
+	double pseudo_time = current_packet.time - first_timestamp;
+	double ct = (current_time(true) - first_wallclock) * pseudo_realtime;
+	return std::max(0.0, pseudo_time - ct);
 	}

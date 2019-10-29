@@ -204,6 +204,8 @@ public:
 	 */
 	virtual void Statistics(Stats* stats) = 0;
 
+	virtual double GetNextTimeout() override;
+
 protected:
 	friend class Manager;
 

@@ -167,7 +167,7 @@ void PcapSource::OpenLive()
 	Info(fmt("pcap bufsize = %d\n", ((struct pcap *) pd)->bufsize));
 #endif
 
-	props.selectable_fd = pcap_fileno(pd);
+	props.selectable_fd = pcap_get_selectable_fd(pd);
 
 	SetHdrSize();
 
