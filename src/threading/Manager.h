@@ -7,8 +7,22 @@
 
 #include "BasicThread.h"
 #include "MsgThread.h"
+#include "Timer.h"
 
 namespace threading {
+
+class HeartbeatTimer : public Timer {
+public:
+	HeartbeatTimer(double t) : Timer(t, TIMER_THREAD_HEARTBEAT) {}
+	virtual ~HeartbeatTimer() {}
+
+	void Dispatch(double t, int is_expire);
+
+protected:
+
+	void Init();
+	int do_expire;
+};
 
 /**
  * The thread manager coordinates all child threads. Once a BasicThread is
@@ -80,6 +94,7 @@ public:
 protected:
 	friend class BasicThread;
 	friend class MsgThread;
+	friend class HeartbeatTimer;
 
 	/**
 	 * Registers a new basic thread with the manager. This is
@@ -111,19 +126,14 @@ protected:
 	double NextTimestamp(double* network_time) override;
 
 	/**
-	 * Part of the IOSource interface.
+	 * Sends heartbeat messages to all active message threads.
 	 */
-	int GetNextTimeout() override;
+	void SendHeartbeats();
 
 	/**
-	 * Part of the IOSource interface.
+	 * Sets up a timer to periodically send heartbeat messages to all threads.
 	 */
-	void Process() override;
-
-	/**
-	 * Part of the IOSource interface.
-	 */
-	const char* Tag() override { return "threading::Manager"; }
+	void StartHeartbeatTimer();
 
 private:
 	typedef std::list<BasicThread*> all_thread_list;
@@ -137,6 +147,8 @@ private:
 	bool terminating;	// True if we are in Terminate().
 
 	msg_stats_list stats;
+
+	HeartbeatTimer* heartbeat_timer = nullptr;
 };
 
 }

@@ -38,6 +38,7 @@ const char* TimerNames[] = {
 	"TCPConnectionResetTimer",
 	"TriggerTimer",
 	"TimerMgrExpireTimer",
+	"ThreadHeartbeat",
 };
 
 const char* timer_type_to_string(TimerType type)

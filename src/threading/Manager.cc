@@ -4,6 +4,15 @@
 
 using namespace threading;
 
+void HeartbeatTimer::Dispatch(double t, int is_expire)
+	{
+	if ( is_expire )
+		return;
+
+	thread_mgr->SendHeartbeats();
+	thread_mgr->StartHeartbeatTimer();
+	}
+
 Manager::Manager()
 	{
 	DBG_LOG(DBG_THREADING, "Creating thread manager ...");
@@ -18,6 +27,9 @@ Manager::~Manager()
 	{
 	if ( all_threads.size() )
 		Terminate();
+
+	if ( heartbeat_timer )
+		delete heartbeat_timer;
 	}
 
 void Manager::Terminate()
@@ -57,6 +69,9 @@ void Manager::AddThread(BasicThread* thread)
 	DBG_LOG(DBG_THREADING, "Adding thread %s ...", thread->Name());
 	all_threads.push_back(thread);
 	SetIdle(false);
+
+	if ( ! heartbeat_timer )
+		StartHeartbeatTimer();
 	}
 
 void Manager::AddMsgThread(MsgThread* thread)
@@ -93,21 +108,6 @@ double Manager::NextTimestamp(double* network_time)
 	return -1.0;
 	}
 
-int Manager::GetNextTimeout()
-	{
-	if ( ::network_time )
-		{
-		if ( ! next_beat )
-			next_beat = ::network_time + BifConst::Threading::heartbeat_interval;
-		else if ( network_time >= next_beat )
-			return 0;
-
-		return static_cast<int>((next_beat - ::network_time) * 1000);
-		}
-
-	return -1;
-	}
-
 void Manager::KillThreads()
 	{
 	DBG_LOG(DBG_THREADING, "Killing threads ...");
@@ -120,6 +120,18 @@ void Manager::KillThread(BasicThread* thread)
 	{
 	DBG_LOG(DBG_THREADING, "Killing thread %s ...", thread->Name());
 	thread->Kill();
+	}
+
+void Manager::SendHeartbeats()
+	{
+	for ( MsgThread* thread : msg_threads )
+		thread->Heartbeat();
+	}
+
+void Manager::StartHeartbeatTimer()
+	{
+	heartbeat_timer = new HeartbeatTimer(network_time + BifConst::Threading::heartbeat_interval);
+	timer_mgr->Add(heartbeat_timer);
 	}
 
 void Manager::Process()
