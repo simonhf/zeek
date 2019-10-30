@@ -287,29 +287,44 @@ void net_run()
 	while ( iosource_mgr->Size() ||
 		(BifConst::exit_only_after_terminate && ! terminating) )
 		{
-		double ts;
-		iosource::IOSource* src = iosource_mgr->FindSoonest(&ts);
+		bool timer_expired = false;
+		std::set<iosource::IOSource*> ready = iosource_mgr->FindReadySources(timer_expired);
 
 #ifdef DEBUG
 		static int loop_counter = 0;
 
 		// If no source is ready, we log only every 100th cycle,
 		// starting with the first.
-		if ( src || loop_counter++ % 100 == 0 )
+		if ( ! ready.empty() || loop_counter++ % 100 == 0 )
 			{
-			DBG_LOG(DBG_MAINLOOP, "realtime=%.6f iosrc=%s ts=%.6f",
-					current_time(), src ? src->Tag() : "<all dry>", src ? ts : -1);
+			DBG_LOG(DBG_MAINLOOP, "realtime=%.6f ready_count=%ld timer_expired=%s",
+				current_time(), ready.size(), timer_expired ? "true" : "false");
 
-			if ( src )
+			if ( ! ready.empty() )
 				loop_counter = 0;
 			}
 #endif
 		current_iosrc = nullptr;
 		auto communication_enabled = broker_mgr->Active();
 
-		if ( src )
-			src->Process();	// which will call net_packet_dispatch()
-
+		if ( ! ready.empty() )
+			{
+			for ( auto src : ready )
+				{
+				DBG_LOG(DBG_MAINLOOP, "processing source %s", src->Tag());
+				current_iosrc = src;
+				src->Process();
+				}
+			}
+		else if ( timer_expired && ( pseudo_realtime || reading_live ) )
+			{
+			// TODO: this block and the block below could probably be combined
+			// Take advantage of the lull to get up to
+			// date on timers and events.
+			net_update_time(current_time());
+			expire_timers();
+			usleep(1); // Just yield.
+			}
 		else if ( reading_live && ! pseudo_realtime)
 			{
 			// live but no source is currently active
