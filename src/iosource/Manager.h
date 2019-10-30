@@ -8,7 +8,6 @@
 #include <map>
 #include <vector>
 #include <set>
-#include "iosource/FD_Set.h"
 
 namespace iosource {
 
@@ -24,7 +23,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Manager()	{ call_count = 0; dont_counts = 0; }
+	Manager()	{ dont_counts = 0; }
 
 	/**
 	 * Destructor.
@@ -44,17 +43,6 @@ public:
 	 * will shut down.
 	 */
 	void Register(IOSource* src, bool dont_count = false);
-
-	/**
-	 * Returns the packet source with the soonest available input. This
-	 * may block for a little while if all are dry.
-	 *
-	 * @param ts A pointer where to store the timestamp of the input that
-	 * the soonest source has available next.
-	 *
-	 * @return The source, or null if no source has input.
-	 */
-	IOSource* FindSoonest(double* ts);
 
 	/**
 	 * Returns the number of registered and still active sources,
@@ -113,20 +101,7 @@ private:
 
 	struct Source {
 		IOSource* src;
-		FD_Set fd_read;
-		FD_Set fd_write;
-		FD_Set fd_except;
 		bool dont_count;
-
-		bool Ready(fd_set* read, fd_set* write, fd_set* except) const
-			{ return fd_read.Ready(read) || fd_write.Ready(write) ||
-			         fd_except.Ready(except); }
-
-		void SetFds(fd_set* read, fd_set* write, fd_set* except,
-		            int* maxx) const;
-
-		void Clear()
-			{ fd_read.Clear(); fd_write.Clear(); fd_except.Clear(); }
 	};
 
 	typedef std::list<Source*> SourceList;

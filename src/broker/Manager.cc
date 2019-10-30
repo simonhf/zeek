@@ -821,24 +821,6 @@ bool Manager::Unsubscribe(const string& topic_prefix)
 	return true;
 	}
 
-void Manager::GetFds(iosource::FD_Set* read, iosource::FD_Set* write,
-                           iosource::FD_Set* except)
-	{
-	read->Insert(bstate->subscriber.fd());
-	read->Insert(bstate->status_subscriber.fd());
-
-	for ( auto& x : data_stores )
-		read->Insert(x.second->proxy.mailbox().descriptor());
-	}
-
-double Manager::NextTimestamp(double* local_network_time)
-	{
-	// We're only asked for a timestamp if either (1) a FD was ready
-	// or (2) we're not idle (and we go idle if when Process is no-op),
-	// so there's no case where returning -1 to signify a skip will help.
-	return timer_mgr->Time();
-	}
-
 void Manager::DispatchMessage(const broker::topic& topic, broker::data msg)
 	{
 	switch ( broker::zeek::Message::type(msg) ) {

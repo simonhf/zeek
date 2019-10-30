@@ -1244,30 +1244,6 @@ void DNS_Mgr::IssueAsyncRequests()
 		}
 	}
 
-void DNS_Mgr::GetFds(iosource::FD_Set* read, iosource::FD_Set* write,
-                     iosource::FD_Set* except)
-	{
-	if ( ! nb_dns )
-		return;
-
-	read->Insert(nb_dns_fd(nb_dns));
-	}
-
-double DNS_Mgr::NextTimestamp(double* network_time)
-	{
-	if ( asyncs_timeouts.empty() )
-		// No pending requests.
-		return -1.0;
-
-	if ( next_timestamp < 0 )
-		// Store the timestamp to help prevent starvation by some other
-		// IOSource always trying to use the same timestamp
-		// (assuming network_time does actually increase).
-		next_timestamp = timer_mgr->Time();
-
-	return next_timestamp;
-	}
-
 void DNS_Mgr::CheckAsyncAddrRequest(const IPAddr& addr, bool timeout)
 	{
 	// Note that this code is a mirror of that for CheckAsyncHostRequest.

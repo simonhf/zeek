@@ -346,9 +346,6 @@ private:
 	// IOSource interface implementation.
 	void Init() override;
 	void Done() override;
-	void GetFds(iosource::FD_Set* read, iosource::FD_Set* write,
-	                    iosource::FD_Set* except) override;
-	double NextTimestamp(double* local_network_time) override;
 	void Process() override;
 	const char* Tag() override;
 

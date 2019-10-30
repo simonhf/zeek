@@ -187,55 +187,6 @@ void PktSrc::Done()
 		Close();
 	}
 
-void PktSrc::GetFds(iosource::FD_Set* read, iosource::FD_Set* write,
-                    iosource::FD_Set* except)
-	{
-	if ( pseudo_realtime )
-		{
-		// Select would give erroneous results. But we simulate it
-		// by setting idle accordingly.
-		SetIdle(CheckPseudoTime() == 0);
-		return;
-		}
-
-	if ( IsOpen() && props.selectable_fd >= 0 )
-		read->Insert(props.selectable_fd);
-
-	// TODO: This seems like a hack that should be removed, but doing so
-	// causes the main run loop to spin more frequently and increase cpu usage.
-	// See also commit 9cd85be308.
-	if ( read->Empty() )
-		read->Insert(0);
-
-	if ( write->Empty() )
-		write->Insert(0);
-
-	if ( except->Empty() )
-		except->Insert(0);
-	}
-
-double PktSrc::NextTimestamp(double* local_network_time)
-	{
-	if ( ! IsOpen() )
-		return -1.0;
-
-	if ( ! ExtractNextPacketInternal() )
-		return -1.0;
-
-	if ( pseudo_realtime )
-		{
-		// Delay packet if necessary.
-		double packet_time = CheckPseudoTime();
-		if ( packet_time )
-			return packet_time;
-
-		SetIdle(true);
-		return -1.0;
-		}
-
-	return current_packet.time;
-	}
-
 void PktSrc::Process()
 	{
 	if ( ! IsOpen() )

@@ -51,38 +51,6 @@ public:
 	virtual void Done()	{ }
 
 	/**
-	 * Returns select'able file descriptors for this source. Leaves the
-	 * passed values untouched if not available.
-	 *
-	 * @param read Pointer to container where to insert a read descriptor.
-	 *
-	 * @param write Pointer to container where to insert a write descriptor.
-	 *
-	 * @param except Pointer to container where to insert a except descriptor.
-	 */
-	virtual void GetFds(FD_Set* read, FD_Set* write, FD_Set* except) = 0;
-
-	/**
-	 * Returns the timestamp (in \a global network time) associated with
-	 * next data item from this source.  If the source wants the data
-	 * item to be processed with a local network time, it sets the
-	 * argument accordingly.
-	 *
-	 * This method will be called only when either IsIdle() returns
-	 * false, or select() on one of the fds returned by GetFDs()
-	 * indicates that there's data to process.
-	 *
-	 * Must be overridden by derived classes.
-	 *
-	 * @param network_time A pointer to store the \a local network time
-	 * associated with the next item (as opposed to global network time).
-	 *
-	 * @return The global network time of the next entry, or a value
-	 * smaller than zero if none is available currently.
-	 */
-	virtual double NextTimestamp(double* network_time) = 0;
-
-	/**
 	 * Return the next timeout value for this source. This should be
 	 * overridden by source classes where they have a timeout value
 	 * that can wake up the poll.
@@ -116,7 +84,7 @@ public:
 	virtual TimerMgr::Tag* GetCurrentTag()	{ return 0; }
 
 	/**
-	 * Returns a descriptual tag representing the source for debugging.
+	 * Returns a descriptive tag representing the source for debugging.
 	 *
 	 * Can be overridden by derived classes.
 	 *
