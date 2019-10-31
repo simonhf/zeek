@@ -1,5 +1,14 @@
 #pragma once
 
+/* Define if you have sys.epoll.h */
+#cmakedefine HAVE_EPOLL_H
+
+/* Define if you have sys/timerfd.h */
+#cmakedefine HAVE_TIMERFD_H
+
+/* Define if you have kqueue() in sys/event.h */
+#cmakedefine HAVE_KQUEUE
+
 /* Old libpcap versions (< 0.6.1) need defining pcap_freecode and
    pcap_compile_nopcap */
 #cmakedefine DONT_HAVE_LIBPCAP_PCAP_FREECODE

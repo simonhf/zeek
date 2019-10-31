@@ -21,6 +21,11 @@
 
 using namespace iosource;
 
+Manager::Manager() : dont_counts(0)
+	{
+	InitQueue();
+	}
+
 Manager::~Manager()
 	{
 	for ( SourceList::iterator i = sources.begin(); i != sources.end(); ++i )
@@ -93,39 +98,201 @@ std::set<IOSource*> Manager::FindReadySources(bool& timer_expired)
 			}
 		}
 
+	// If the active packet source isn't live or the packet source is ready (i.e.
+	// we're in pseudo-realtime mode and it's time for a packet), always insert
+	// the packet source into the list of ready sources.
+	if ( ! pkt_srcs.empty() && ! pkt_srcs.front()->IsLive() && pkt_srcs.front()->GetNextTimeout() == 0 )
+		ready.insert(pkt_srcs.front());
+
+	// Call the appropriate poll method for what's available on the operating system.
+	timer_expired = Poll(ready, timeout, timeout_src);
+
+	return ready;
+	}
+
+#if defined(HAVE_EPOLL_H)
+
+void Manager::InitQueue()
+	{
+	event_queue = epoll_create(1);
+	}
+
+void Manager::RegisterFd(int fd, IOSource* src)
+	{
+	}
+
+void Manager::UnregisterFd(int fd)
+	{
+	}
+
+bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)
+	{
+	bool timer_expired = false;
+
+	return timer_expired;
+	}
+
+#elif defined(HAVE_KQUEUE)
+
+void Manager::InitQueue()
+	{
+	event_queue = kqueue();
+	}
+
+void Manager::RegisterFd(int fd, IOSource* src)
+	{
+	struct kevent event;
+	EV_SET(&event, fd, EVFILT_READ, EV_ADD | EV_CLEAR, 0, 0, NULL);
+	int ret = kevent(event_queue, &event, 1, NULL, 0, NULL);
+	if ( ret != -1 )
+		{
+		events.push_back({0, 0, 0, 0, 0, NULL});
+		DBG_LOG(DBG_MAINLOOP, "Registered fd %d from %s", fd, src->Tag());
+		fd_map[fd] = src;
+		}
+	else
+		{
+		DBG_LOG(DBG_MAINLOOP, "Failed to register fd %d from %s: %s", fd, src->Tag(), strerror(errno));
+		}
+	}
+
+void Manager::UnregisterFd(int fd)
+	{
+	if ( fd_map.find(fd) != fd_map.end() )
+		{
+		struct kevent event;
+		EV_SET(&event, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+		int ret = kevent(event_queue, &event, 1, NULL, 0, NULL);
+		if ( ret != -1 )
+			{
+			DBG_LOG(DBG_MAINLOOP, "Unregistered fd %d", fd);
+			}
+		else
+			{
+			DBG_LOG(DBG_MAINLOOP, "Failed to unregister fd %d: %s", fd, strerror(errno));
+			}
+
+		fd_map.erase(fd);
+		}
+	}
+
+bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)
+	{
+	bool timer_expired = false;
+
 	// If timeout ended up -1, set it to some nominal value just to keep the loop
 	// from blocking forever. This is the case of exit_only_after_terminate when
 	// there isn't anything else going on.
-	if ( timeout == -1 )
+	struct timespec kqueue_timeout;
+	if ( timeout < 0 )
+		{
+		kqueue_timeout.tv_sec = 0;
+		kqueue_timeout.tv_nsec = 1e8;
+		}
+	else
+		{
+		kqueue_timeout.tv_sec = static_cast<time_t>(timeout);
+		kqueue_timeout.tv_nsec = static_cast<long>((timeout - kqueue_timeout.tv_sec) * 1e9);
+		}
+
+	int ret = kevent(event_queue, NULL, 0, events.data(), events.size(), &kqueue_timeout);
+	if ( ret == -1 )
+		{
+		// Ignore interrupts since we may catch one during shutdown and we don't want the
+		// error to get printed.
+		if ( errno != EINTR )
+			perror("kevent error");
+		}
+	else if ( ret == 0 )
+		{
+		if ( timeout_src )
+			ready.insert(timeout_src);
+		else
+			// Setting this to true here but not returning a source causes net_run
+			// to advance the time and process timers as normal.
+			timer_expired = true;
+		}
+	else
+		{
+		// kevent returns the number of events that are ready, so we only need to loop
+		// over that many of them.
+		for ( int i = 0; i < ret; i++ )
+			{
+			if ( events[i].filter == EVFILT_READ )
+				{
+				std::map<int, IOSource*>::const_iterator it = fd_map.find(events[i].ident);
+				if ( it != fd_map.end() )
+					ready.insert(it->second);
+				}
+			}
+		}
+
+	return timer_expired;
+	}
+
+#else
+
+void Manager::InitQueue()
+	{
+	}
+
+void Manager::RegisterFd(int fd, IOSource* src)
+	{
+	auto entry = std::find_if(events.begin(), events.end(),
+		[fd](const pollfd &entry) -> bool { return entry.fd == fd; });
+	if ( entry == events.end() )
+		{
+		DBG_LOG(DBG_MAINLOOP, "Registered fd %d from %s", fd, src->Tag());
+		fd_map[fd] = src;
+
+		pollfd pfd;
+		pfd.fd = fd;
+		pfd.events = POLLIN;
+		events.push_back(pfd);
+		}
+	}
+
+void Manager::UnregisterFd(int fd)
+	{
+	auto entry = std::find_if(events.begin(), events.end(),
+		[fd](const pollfd &entry) -> bool { return entry.fd == fd; });
+
+	if ( entry != events.end() )
+		{
+		DBG_LOG(DBG_MAINLOOP, "Unregistered fd %d", fd);
+		events.erase(entry);
+		fd_map.erase(fd);
+		}
+	}
+
+bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)
+	{
+	bool timer_expired = false;
+
+	// If timeout ended up -1, set it to some nominal value just to keep the loop
+	// from blocking forever. This is the case of exit_only_after_terminate when
+	// there isn't anything else going on.
+	if ( timeout < 0 )
 		timeout = 100;
 	else
 		timeout *= 1000.0;
 
-	// If the active packet source isn't live or the packet source is ready (i.e.
-	// we're in pseudo-realtime mode and it's time for a packet), always insert
-	// the packet source into the list of ready sources.
-	if ( ! pkt_srcs.empty() && pkt_srcs.front()->IsOpen() && ! pkt_srcs.front()->IsLive() && pkt_srcs.front()->GetNextTimeout() == 0 )
-		ready.insert(pkt_srcs.front());
-
-	for ( auto pfd : poll_fds )
+	for ( auto pfd : events )
 		pfd.revents = 0;
 
 	// Poll will return the number of ready file descriptors, independent of the timeout.
 	// That said, we need to keep track of whether there was a timer at zero so that we
 	// don't end up with a case where
-	int ret = poll(poll_fds.data(), poll_fds.size(), static_cast<int>(timeout));
+	int ret = poll(events.data(), events.size(), static_cast<int>(timeout));
 	if ( ret == -1 )
 		{
-		// TODO: gotta do something else here
+		// TODO: something better here than just a perror
 		perror("poll error");
 		}
 	else if ( ret == 0 )
 		{
-		// TODO: need a better way to handle the source that causes the timeout so
-		// that just the timeout is processed instead of everything in the Process()
-		// method of the source.
 		if ( timeout_src )
-			ready.insert(timeout_src->src);
+			ready.insert(timeout_src);
 		else
 			// Setting this to true here but not returning a source causes net_run
 			// to advance the time and process timers as normal.
@@ -134,21 +301,26 @@ std::set<IOSource*> Manager::FindReadySources(bool& timer_expired)
 	else
 		{
 		// TODO: handle errors in revents in some way
-		for ( auto pfd : poll_fds )
+		for ( auto pfd : events )
 			{
 			auto entry = fd_map.find(pfd.fd);
-			if ( pfd.revents == pfd.events )
-				ready.insert(entry->second);
-			else if ( pfd.revents == POLLERR ||
-				pfd.revents == POLLHUP ||
-				pfd.revents == POLLNVAL )
-				printf("Source %s returned an error from poll (0x%x)\n",
-					entry->second->Tag(), pfd.revents);
+			if ( entry != fd_map.end() )
+				{
+				if ( pfd.revents == pfd.events )
+					ready.insert(entry->second);
+				else if ( pfd.revents == POLLERR ||
+					pfd.revents == POLLHUP ||
+					pfd.revents == POLLNVAL )
+					printf("Source %s returned an error from poll (0x%x)\n",
+						entry->second->Tag(), pfd.revents);
+				}
 			}
 		}
 
-	return ready;
+	return timer_expired;
 	}
+
+#endif
 
 void Manager::Register(IOSource* src, bool dont_count)
 	{
@@ -287,35 +459,4 @@ PktDumper* Manager::OpenPktDumper(const string& path, bool append)
 	pkt_dumpers.push_back(pd);
 
 	return pd;
-	}
-
-void Manager::RegisterFd(int fd, IOSource* src)
-	{
-	if ( src == nullptr )
-		return;
-
-	auto entry = std::find_if(poll_fds.begin(), poll_fds.end(),
-		[fd](const pollfd &entry) -> bool { return entry.fd == fd; });
-	if ( entry == poll_fds.end() )
-		{
-		DBG_LOG(DBG_MAINLOOP, "Registering fd %d from %s", fd, src->Tag());
-		pollfd pfd;
-		pfd.fd = fd;
-		pfd.events = POLLIN;
-		poll_fds.push_back(pfd);
-		fd_map[fd] = src;
-		}
-	}
-
-void Manager::UnregisterFd(int fd)
-	{
-	auto entry = std::find_if(poll_fds.begin(), poll_fds.end(),
-		[fd](const pollfd &entry) -> bool { return entry.fd == fd; });
-
-	if ( entry != poll_fds.end() )
-		{
-		DBG_LOG(DBG_MAINLOOP, "Unregistering fd %d", fd);
-		poll_fds.erase(entry);
-		fd_map.erase(fd);
-		}
 	}

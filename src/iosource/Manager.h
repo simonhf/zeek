@@ -2,7 +2,17 @@
 
 #pragma once
 
+#include "zeek-config.h"
+
+#if defined(HAVE_EPOLL_H)
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#elif defined(HAVE_KQUEUE)
+#include <sys/event.h>
+#else
 #include <poll.h>
+#endif
+
 #include <string>
 #include <list>
 #include <map>
@@ -23,7 +33,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Manager()	{ dont_counts = 0; }
+	Manager();
 
 	/**
 	 * Destructor.
@@ -97,6 +107,9 @@ private:
 	void Register(PktSrc* src);
 	void RemoveAll();
 
+	void InitQueue();
+	bool Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src);
+
 	int dont_counts;
 
 	struct Source {
@@ -112,8 +125,19 @@ private:
 	PktSrcList pkt_srcs;
 	PktDumperList pkt_dumpers;
 
-	std::vector<pollfd> poll_fds;
+	int event_queue;
 	std::map<int, IOSource*> fd_map;
+
+#if defined(HAVE_EPOLL_H)
+	std::vector<epoll_event> events;
+#elif defined(HAVE_KQUEUE)
+	// This is only used for the output of the call to kqueue in FindReadySources().
+	// The actual events are stored as part of the queue.
+	std::vector<struct kevent> events;
+#else
+	// Fall back to regular poll() if we don't have kqueue or epoll.
+	std::vector<pollfd> events;
+#endif
 };
 
 }
