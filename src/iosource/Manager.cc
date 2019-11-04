@@ -21,6 +21,31 @@
 
 using namespace iosource;
 
+Manager::WakeupHandler::WakeupHandler()
+	{
+	socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
+	iosource_mgr->RegisterFd(pair[0], this);
+	}
+
+Manager::WakeupHandler::~WakeupHandler()
+	{
+	iosource_mgr->UnregisterFd(pair[0]);
+	close(pair[0]);
+	close(pair[1]);
+	}
+
+void Manager::WakeupHandler::Process()
+	{
+	char byte;
+	read(pair[0], &byte, 1);
+	}
+
+void Manager::WakeupHandler::Ping(const std::string& where)
+	{
+	DBG_LOG(DBG_MAINLOOP, "Pinging WakeupHandler from %s", where.c_str());
+	write(pair[1], " ", 1);
+	}
+
 Manager::Manager() : dont_counts(0)
 	{
 	InitQueue();
@@ -28,6 +53,8 @@ Manager::Manager() : dont_counts(0)
 
 Manager::~Manager()
 	{
+	delete wakeup;
+
 	for ( SourceList::iterator i = sources.begin(); i != sources.end(); ++i )
 		{
 		(*i)->src->Done();
@@ -46,10 +73,21 @@ Manager::~Manager()
 	pkt_dumpers.clear();
 	}
 
+void Manager::InitPostScript()
+	{
+	wakeup = new WakeupHandler();
+	}
+
 void Manager::RemoveAll()
 	{
 	// We're cheating a bit here ...
 	dont_counts = sources.size();
+	}
+
+void Manager::Wakeup(const std::string& where)
+	{
+	if ( wakeup )
+		wakeup->Ping(where);
 	}
 
 std::set<IOSource*> Manager::FindReadySources(bool& timer_expired)
@@ -174,6 +212,8 @@ void Manager::UnregisterFd(int fd)
 
 		fd_map.erase(fd);
 		}
+
+	Wakeup("UnregisterFd");
 	}
 
 bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)
@@ -263,6 +303,8 @@ void Manager::UnregisterFd(int fd)
 		events.erase(entry);
 		fd_map.erase(fd);
 		}
+
+	Wakeup("UnregisterFd");
 	}
 
 bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)

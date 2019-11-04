@@ -19,9 +19,10 @@
 #include <vector>
 #include <set>
 
+#include "IOSource.h"
+
 namespace iosource {
 
-class IOSource;
 class PktSrc;
 class PktDumper;
 
@@ -39,6 +40,8 @@ public:
 	 * Destructor.
 	 */
 	~Manager();
+
+	void InitPostScript();
 
 	/**
 	 * Registers an IOSource with the manager. If the source is already
@@ -102,7 +105,21 @@ public:
 	void RegisterFd(int fd, IOSource* src);
 	void UnregisterFd(int fd);
 
+	void Wakeup(const std::string& where);
+
 private:
+
+	class WakeupHandler : public IOSource {
+	public:
+		WakeupHandler();
+		~WakeupHandler();
+		void Process() override;
+		void Ping(const std::string& where);
+		const char* Tag() override { return "WakeupHandler"; }
+
+	private:
+		int pair[2];
+		};
 
 	void Register(PktSrc* src);
 	void RemoveAll();
@@ -138,6 +155,8 @@ private:
 	// Fall back to regular poll() if we don't have kqueue or epoll.
 	std::vector<pollfd> events;
 #endif
+
+	WakeupHandler* wakeup = nullptr;
 };
 
 }
