@@ -401,6 +401,21 @@ HashKey* CompositeHash::ComputeSingletonHash(const Val* v, int type_check) const
 		if ( v->Type()->Tag() == TYPE_FUNC )
 			return new HashKey(v->AsFunc()->GetUniqueFuncID());
 
+		if (v->Type()->Tag() == TYPE_PATTERN) {
+			size_t len[2] = {
+				strlen(v->AsPattern()->PatternText()), 
+				strlen(v->AsPattern()->AnywherePatternText())
+			};
+			char key[len[0] + len[1] + 2];
+
+			std::memcpy(key, v->AsPattern()->PatternText(), len[0]);
+			key[len[0]] = ' '; // ' ' acts as separator for Pattern Text and Anywhere Pattern Text
+			std::memcpy(key + len[0] + 1, v->AsPattern()->AnywherePatternText(), len[1]);
+			key[len[0] + len[1] + 1] = '\0';
+
+			return new HashKey(v->AsPattern()->PatternText());
+		}
+
 		reporter->InternalError("bad index type in CompositeHash::ComputeSingletonHash");
 		return 0;
 
