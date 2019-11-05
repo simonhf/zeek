@@ -413,7 +413,7 @@ HashKey* CompositeHash::ComputeSingletonHash(const Val* v, int type_check) const
 			std::memcpy(key + len[0] + 1, v->AsPattern()->AnywherePatternText(), len[1]);
 			key[len[0] + len[1] + 1] = '\0';
 
-			return new HashKey(v->AsPattern()->PatternText());
+			return new HashKey(key);
 		}
 
 		reporter->InternalError("bad index type in CompositeHash::ComputeSingletonHash");
