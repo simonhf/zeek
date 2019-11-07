@@ -15,6 +15,12 @@ export {
 		UNKNOWN
 	};
 
+	## If true, logging is enabled for print statements instead of output to files
+	const print_to_log = F &redef;
+
+	## If print_to_log is true, this is the Log::ID to which print writes
+	const print_log = UNKNOWN &redef;
+
 	## If true, local logging is by default enabled for all filters.
 	const enable_local_logging = T &redef;
 

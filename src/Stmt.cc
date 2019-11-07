@@ -14,6 +14,7 @@
 #include "Debug.h"
 #include "Traverse.h"
 #include "Trigger.h"
+#include "logging/Manager.h"
 
 const char* stmt_name(BroStmtTag t)
 	{
@@ -187,6 +188,28 @@ static BroFile* print_stdout = 0;
 Val* PrintStmt::DoExec(val_list* vals, stmt_flow_type& /* flow */) const
 	{
 	RegisterAccess();
+
+	if (internal_val("Log::print_to_log")->AsBool()) {
+
+		EnumVal* log_id = internal_val("Log::print_log")->AsEnumVal();
+		RecordType* type = log_mgr->StreamColumns(log_id);
+
+		// There is also probably a better way to check this
+		// This checks both that Log::print_log is redef-ed and that a Manager::CreateStream is run beforehand
+		if ( type == nullptr )
+			{
+			reporter->FatalError("no log stream found to print");
+			return 0;
+			}
+
+		RecordVal record = RecordVal(type);
+
+		for ( int i = 0; i < vals->length(); i++ )
+			record.Assign(i,(*vals)[i]);
+
+		log_mgr->Write(internal_val("Log::print_log")->AsEnumVal(), &record);
+		return 0;
+	}
 
 	if ( ! print_stdout )
 		print_stdout = new BroFile(stdout);
