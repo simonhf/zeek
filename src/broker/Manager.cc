@@ -873,6 +873,10 @@ void Manager::DispatchMessage(const broker::topic& topic, broker::data msg)
 
 void Manager::Process()
 	{
+	// Ensure that time gets update before processing broker messages, or events
+	// based on them might get scheduled wrong.
+	net_update_time(current_time());
+
 	bool had_input = false;
 
 	auto status_msgs = bstate->status_subscriber.poll();
