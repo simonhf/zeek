@@ -1,6 +1,9 @@
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "Manager.h"
 #include "NetVar.h"
+#include "iosource/Manager.h"
 
 using namespace threading;
 
@@ -19,8 +22,6 @@ Manager::Manager()
 
 	did_process = true;
 	next_beat = 0;
-	terminating = false;
-	SetIdle(true);
 	}
 
 Manager::~Manager()
@@ -36,10 +37,9 @@ void Manager::Terminate()
 	{
 	DBG_LOG(DBG_THREADING, "Terminating thread manager ...");
 
-	terminating = true;
-
 	// First process remaining thread output for the message threads.
-	do Process(); while ( did_process );
+	// TODO: does this still need to happen?
+	do Flush(); while ( did_process );
 
 	// Signal all to stop.
 
@@ -58,17 +58,12 @@ void Manager::Terminate()
 
 	all_threads.clear();
 	msg_threads.clear();
-
-	SetIdle(true);
-	SetClosed(true);
-	terminating = false;
 	}
 
 void Manager::AddThread(BasicThread* thread)
 	{
 	DBG_LOG(DBG_THREADING, "Adding thread %s ...", thread->Name());
 	all_threads.push_back(thread);
-	SetIdle(false);
 
 	if ( ! heartbeat_timer )
 		StartHeartbeatTimer();
@@ -78,34 +73,6 @@ void Manager::AddMsgThread(MsgThread* thread)
 	{
 	DBG_LOG(DBG_THREADING, "%s is a MsgThread ...", thread->Name());
 	msg_threads.push_back(thread);
-	}
-
-void Manager::GetFds(iosource::FD_Set* read, iosource::FD_Set* write,
-                     iosource::FD_Set* except)
-	{
-	}
-
-double Manager::NextTimestamp(double* network_time)
-	{
-//	fprintf(stderr, "N %.6f %.6f did_process=%d next_next=%.6f\n", ::network_time, timer_mgr->Time(), (int)did_process, next_beat);
-
-	if ( ::network_time && (did_process || ::network_time > next_beat || ! next_beat) )
-		// If we had something to process last time (or out heartbeat
-		// is due or not set yet), we want to check for more asap.
-		return timer_mgr->Time();
-
-	for ( msg_thread_list::iterator i = msg_threads.begin(); i != msg_threads.end(); i++ )
-		{
-		MsgThread* t = *i;
-
-		if ( t->MightHaveOut() || t->Killed() )
-			// Even if the thread doesn't have output, it may be killed/done,
-			// which should also signify that processing is needed.  The
-			// "processing" in that case is joining the thread and deleting it.
-			return timer_mgr->Time();
-		}
-
-	return -1.0;
 	}
 
 void Manager::KillThreads()
@@ -126,6 +93,33 @@ void Manager::SendHeartbeats()
 	{
 	for ( MsgThread* thread : msg_threads )
 		thread->Heartbeat();
+
+	// Since this is a regular timer, this is also an ideal place to check whether we have
+	// and dead threads and to delete them.
+	all_thread_list to_delete;
+	for ( all_thread_list::iterator i = all_threads.begin(); i != all_threads.end(); i++ )
+		{
+		BasicThread* t = *i;
+
+		if ( t->Killed() )
+			to_delete.push_back(t);
+		}
+
+	for ( all_thread_list::iterator i = to_delete.begin(); i != to_delete.end(); i++ )
+		{
+		BasicThread* t = *i;
+		t->WaitForStop();
+
+		all_threads.remove(t);
+
+		MsgThread* mt = dynamic_cast<MsgThread *>(t);
+
+		if ( mt )
+			msg_threads.remove(mt);
+
+		t->Join();
+		delete t;
+		}
 	}
 
 void Manager::StartHeartbeatTimer()
@@ -134,7 +128,7 @@ void Manager::StartHeartbeatTimer()
 	timer_mgr->Add(heartbeat_timer);
 	}
 
-void Manager::Process()
+void Manager::Flush()
 	{
 	bool do_beat = false;
 

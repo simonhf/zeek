@@ -3,8 +3,6 @@
 
 #include <list>
 
-#include "iosource/IOSource.h"
-
 #include "BasicThread.h"
 #include "MsgThread.h"
 #include "Timer.h"
@@ -34,7 +32,7 @@ protected:
  * their outgoing message queue on a regular basis and feeds data sent into
  * the rest of Bro. It also triggers the regular heartbeats.
  */
-class Manager : public iosource::IOSource
+class Manager
 {
 public:
 	/**
@@ -44,9 +42,9 @@ public:
 	Manager();
 
 	/**
-	 * Destructir.
+	 * Destructor.
 	 */
-	~Manager() override;
+	~Manager();
 
 	/**
 	 * Terminates the manager's processor. The method signals all threads
@@ -114,16 +112,7 @@ protected:
 	 */
 	void AddMsgThread(MsgThread* thread);
 
-	/**
-	 * Part of the IOSource interface.
-	 */
-	void GetFds(iosource::FD_Set* read, iosource::FD_Set* write,
-	                    iosource::FD_Set* except) override;
-
-	/**
-	 * Part of the IOSource interface.
-	 */
-	double NextTimestamp(double* network_time) override;
+	void Flush();
 
 	/**
 	 * Sends heartbeat messages to all active message threads.

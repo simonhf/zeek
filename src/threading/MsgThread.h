@@ -5,6 +5,7 @@
 
 #include "BasicThread.h"
 #include "Queue.h"
+#include "iosource/IOSource.h"
 
 namespace threading {
 
@@ -23,7 +24,7 @@ class HeartbeatMessage;
  * that happens, the thread stops accepting any new messages, finishes
  * processes all remaining ones still in the queue, and then exits.
  */
-class MsgThread : public BasicThread
+class MsgThread : public BasicThread, public iosource::IOSource
 {
 public:
 	/**
@@ -33,6 +34,11 @@ public:
 	 * Only Bro's main thread may instantiate a new thread.
 	 */
 	MsgThread();
+
+	/**
+	 * Destructor.
+	 */
+	virtual ~MsgThread();
 
 	/**
 	 * Sends a message to the child thread. The message will be proceesed
@@ -175,6 +181,12 @@ public:
 	 */
 	void GetStats(Stats* stats);
 
+	/**
+	 * Overridden from iosource::IOSource.
+	 */
+	void Process() override;
+	const char* Tag() override { return Name(); }
+
 protected:
 	friend class Manager;
 	friend class HeartbeatMessage;
@@ -229,7 +241,6 @@ protected:
 
 	/**
 	 * Overriden from BasicThread.
-	 *
 	 */
 	void Run() override;
 	void OnWaitForStop() override;
@@ -307,6 +318,8 @@ private:
 	bool main_finished;	// Main thread is finished, meaning child_finished propagated back through message queue.
 	bool child_finished;	// Child thread is finished.
 	bool failed;	// Set to true when a command failed.
+
+	int ready_pair[2];
 };
 
 /**
