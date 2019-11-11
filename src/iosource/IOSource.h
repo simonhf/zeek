@@ -7,7 +7,6 @@ extern "C" {
 }
 
 #include <string>
-#include "FD_Set.h"
 #include "Timer.h"
 
 namespace iosource {
