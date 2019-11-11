@@ -130,7 +130,7 @@ public:
 	 *
 	 * @return False if an error occured.
 	 */
-	bool Init(int num_fields, const threading::Field* const* fields);
+	bool InitWriter(int num_fields, const threading::Field* const* fields);
 
 	/**
 	 * Writes one log entry.

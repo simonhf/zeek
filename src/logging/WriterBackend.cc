@@ -177,7 +177,7 @@ void WriterBackend::DisableFrontend()
 	SendOut(new DisableMessage(frontend));
 	}
 
-bool WriterBackend::Init(int arg_num_fields, const Field* const* arg_fields)
+bool WriterBackend::InitWriter(int arg_num_fields, const Field* const* arg_fields)
 	{
 	SetOSName(Fmt("zk.%s", Name()));
 	num_fields = arg_num_fields;

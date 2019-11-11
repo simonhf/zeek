@@ -249,8 +249,8 @@ void ReaderBackend::SendEntry(Value* *vals)
 	SendOut(new SendEntryMessage(frontend, vals));
 	}
 
-bool ReaderBackend::Init(const int arg_num_fields,
-		         const threading::Field* const* arg_fields)
+bool ReaderBackend::InitReader(const int arg_num_fields,
+                               const threading::Field* const* arg_fields)
 	{
 	if ( Failed() )
 		return true;

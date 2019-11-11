@@ -18,7 +18,7 @@ public:
 
 	virtual bool Process()
 		{
-		return Object()->Init(num_fields, fields);
+		return Object()->InitReader(num_fields, fields);
 		}
 
 private:
@@ -100,4 +100,3 @@ const char* ReaderFrontend::Name() const
 	}
 
 }
-

@@ -23,7 +23,7 @@ public:
 			{}
 
 
-	virtual bool Process() { return Object()->Init(num_fields, fields); }
+	virtual bool Process() { return Object()->InitWriter(num_fields, fields); }
 
 private:
 	const int num_fields;

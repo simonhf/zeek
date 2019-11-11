@@ -150,7 +150,7 @@ public:
 	 *
 	 * @return False if an error occured.
 	 */
-	bool Init(int num_fields, const threading::Field* const* fields);
+	bool InitReader(int num_fields, const threading::Field* const* fields);
 
 	/**
 	 * Force trigger an update of the input stream. The action that will
