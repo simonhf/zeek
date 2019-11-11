@@ -185,17 +185,32 @@ TraversalCode ExprListStmt::Traverse(TraversalCallback* cb) const
 
 static BroFile* print_stdout = 0;
 
+TableVal* get_string_set_from_vals (val_list* vals, ODesc* d) {
+	ListVal* set = new ListVal(TYPE_STRING);
+	for ( int i = 0; i < vals->length(); i++ ) {
+		d->Clear();
+		Val* val = (*vals)[i];
+		val->Describe(d);
+		set->Append(new StringVal(d->Description()));
+	}
+	return set->ConvertToSet();
+}
+
 Val* PrintStmt::DoExec(val_list* vals, stmt_flow_type& /* flow */) const
 	{
 	RegisterAccess();
 
+	internal_val("Log::PRINTLOG")->AsEnumVal();
+/*
 	if (internal_val("Log::print_to_log")->AsBool()) {
+		ODesc d(DESC_READABLE);
+		d.SetFlush(0);
 
-		EnumVal* log_id = internal_val("Log::print_log")->AsEnumVal();
+		EnumVal* log_id = internal_val("Log::PRINTLOG")->AsEnumVal();
 		RecordType* type = log_mgr->StreamColumns(log_id);
 
-		// There is also probably a better way to check this
-		// This checks both that Log::print_log is redef-ed and that a Manager::CreateStream is run beforehand
+		// There is also probably a better way to check this,
+		// Checks if Manager::CreateStream is called beforehand
 		if ( type == nullptr )
 			{
 			reporter->FatalError("no log stream found to print");
@@ -204,13 +219,13 @@ Val* PrintStmt::DoExec(val_list* vals, stmt_flow_type& /* flow */) const
 
 		RecordVal record = RecordVal(type);
 
-		for ( int i = 0; i < vals->length(); i++ )
-			record.Assign(i,(*vals)[i]);
+		record.Assign(0,new Val(current_time(), TYPE_TIME));
+		record.Assign(1,get_string_set_from_vals(vals,&d));
 
-		log_mgr->Write(internal_val("Log::print_log")->AsEnumVal(), &record);
+		log_mgr->Write(log_id, &record);
 		return 0;
 	}
-
+*/
 	if ( ! print_stdout )
 		print_stdout = new BroFile(stdout);
 

@@ -15,12 +15,6 @@ export {
 		UNKNOWN
 	};
 
-	## If true, logging is enabled for print statements instead of output to files
-	const print_to_log = F &redef;
-
-	## If print_to_log is true, this is the Log::ID to which print writes
-	const print_log = UNKNOWN &redef;
-
 	## If true, local logging is by default enabled for all filters.
 	const enable_local_logging = T &redef;
 
@@ -80,6 +74,23 @@ export {
 	##
 	## Returns: The path to be used for the filter.
 	global default_path_func: function(id: ID, path: string, rec: any) : string &redef;
+
+	# Log Print Statements
+
+	type PrintLogInfo: record {
+	    ## Current timestamp.
+		ts:                  time              &log;
+		## Set of strings passed to the print statement.
+		vals:                set[string]       &log;
+	};
+
+	redef enum Log::ID += {PRINTLOG};
+
+	## If true, logging is enabled for print statements instead of output to files
+	const print_to_log = F &redef;
+
+	## If print_to_log is true, this is the path to which the print Log Stream writes
+	const print_log_path = "print" &redef;
 
 	# Log rotation support.
 
@@ -648,4 +659,11 @@ function add_default_filter(id: ID) : bool
 function remove_default_filter(id: ID) : bool
 	{
 	return remove_filter(id, "default");
+	}
+
+event zeek_init() &priority=5
+	{
+	#if (Log::print_to_log)
+	Log::create_stream(Log::PRINTLOG, [$columns=PrintLogInfo, $path=print_log_path]);
+	print PRINTLOG;
 	}
