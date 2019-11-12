@@ -126,6 +126,7 @@ private:
 
 	void InitQueue();
 	bool Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src);
+	void ConvertTimeout(double timeout, struct timespec& spec);
 
 	int dont_counts;
 

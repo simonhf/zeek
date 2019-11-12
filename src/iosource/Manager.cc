@@ -220,20 +220,8 @@ bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout
 	{
 	bool timer_expired = false;
 
-	// If timeout ended up -1, set it to some nominal value just to keep the loop
-	// from blocking forever. This is the case of exit_only_after_terminate when
-	// there isn't anything else going on.
 	struct timespec kqueue_timeout;
-	if ( timeout < 0 )
-		{
-		kqueue_timeout.tv_sec = 0;
-		kqueue_timeout.tv_nsec = 1e8;
-		}
-	else
-		{
-		kqueue_timeout.tv_sec = static_cast<time_t>(timeout);
-		kqueue_timeout.tv_nsec = static_cast<long>((timeout - kqueue_timeout.tv_sec) * 1e9);
-		}
+	ConvertTimeout(timeout, kqueue_timeout);
 
 	int ret = kevent(event_queue, NULL, 0, events.data(), events.size(), &kqueue_timeout);
 	if ( ret == -1 )
@@ -363,6 +351,25 @@ bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout
 	}
 
 #endif
+
+void Manager::ConvertTimeout(double timeout, struct timespec& spec)
+	{
+	// If timeout ended up -1, set it to some nominal value just to keep the loop
+	// from blocking forever. This is the case of exit_only_after_terminate when
+	// there isn't anything else going on.
+	if ( timeout < 0 )
+		{
+		spec.tv_sec = 0;
+		spec.tv_nsec = 1e8;
+		}
+	else
+		{
+		spec.tv_sec = static_cast<time_t>(timeout);
+		spec.tv_nsec = static_cast<long>((timeout - spec.tv_sec) * 1e9);
+		}
+
+	DBG_LOG(DBG_MAINLOOP, "Timeout set to %ld %ld from %f\n", spec.tv_sec, spec.tv_nsec, timeout);
+	}
 
 void Manager::Register(IOSource* src, bool dont_count)
 	{
