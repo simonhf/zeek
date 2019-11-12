@@ -1,13 +1,18 @@
 // See the file "COPYING" in the main distribution directory for copyright.
 
+#include "Manager.h"
+
 #include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <assert.h>
 
+#ifdef HAVE_TIMERFD_H
+#include <sys/timerfd.h>
+#endif
+
 #include <algorithm>
 
-#include "Manager.h"
 #include "IOSource.h"
 #include "Net.h"
 #include "PktSrc.h"
@@ -53,6 +58,9 @@ Manager::Manager() : dont_counts(0)
 
 Manager::~Manager()
 	{
+	if ( timerfd != -1 )
+		close(timerfd);
+
 	delete wakeup;
 
 	for ( SourceList::iterator i = sources.begin(); i != sources.end(); ++i )
@@ -262,6 +270,15 @@ bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout
 
 void Manager::InitQueue()
 	{
+	timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
+	if ( timerfd == -1 )
+		reporter->FatalError("Failed to initialize timerfd: %s", strerror(errno));
+
+	pollfd pfd;
+	pfd.fd = timerfd;
+	pfd.events = POLLIN;
+	events.push_back(pfd);
+	DBG_LOG(DBG_MAINLOOP, "Added fd %d from Timerfd", timerfd);
 	}
 
 void Manager::RegisterFd(int fd, IOSource* src)
@@ -277,6 +294,8 @@ void Manager::RegisterFd(int fd, IOSource* src)
 		pfd.fd = fd;
 		pfd.events = POLLIN;
 		events.push_back(pfd);
+
+		Wakeup("RegisterFd");
 		}
 	}
 
@@ -290,42 +309,43 @@ void Manager::UnregisterFd(int fd)
 		DBG_LOG(DBG_MAINLOOP, "Unregistered fd %d", fd);
 		events.erase(entry);
 		fd_map.erase(fd);
-		}
 
-	Wakeup("UnregisterFd");
+		Wakeup("UnregisterFd");
+		}
 	}
 
 bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)
 	{
 	bool timer_expired = false;
 
-	// If timeout ended up -1, set it to some nominal value just to keep the loop
-	// from blocking forever. This is the case of exit_only_after_terminate when
-	// there isn't anything else going on.
-	if ( timeout < 0 )
-		timeout = 100;
-	else
-		timeout *= 1000.0;
+	// TODO: double comparisons are fraught with danger
+	if ( timeout != 0 )
+		{
+		struct itimerspec new_timeout;
+		memset(&new_timeout, 0, sizeof(new_timeout));
+		ConvertTimeout(timeout, new_timeout.it_value);
+		timerfd_settime(timerfd, 0, &new_timeout, NULL);
+		}
 
 	for ( auto pfd : events )
 		pfd.revents = 0;
 
-	// Poll will return the number of ready file descriptors, independent of the timeout.
-	// That said, we need to keep track of whether there was a timer at zero so that we
-	// don't end up with a case where
-	int ret = poll(events.data(), events.size(), static_cast<int>(timeout));
+	// Because of the way timerfd works, you can't just set it to a zero
+	// timeout. That deactivates the timer. That means if the timeout
+	// passed in was zero, we need to pass that zero down to poll().
+	// Otherwise, set it to -1 and let timerfd do its thing.
+	int ret = poll(events.data(), events.size(), timeout == 0 ? 0 : -1);
 	if ( ret == -1 )
 		{
 		// TODO: something better here than just a perror
-		perror("poll error");
+		if ( errno != EINTR )
+			perror("poll error");
 		}
 	else if ( ret == 0 )
 		{
 		if ( timeout_src )
 			ready.insert(timeout_src);
 		else
-			// Setting this to true here but not returning a source causes net_run
-			// to advance the time and process timers as normal.
 			timer_expired = true;
 		}
 	else
@@ -333,16 +353,36 @@ bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout
 		// TODO: handle errors in revents in some way
 		for ( auto pfd : events )
 			{
-			auto entry = fd_map.find(pfd.fd);
-			if ( entry != fd_map.end() )
+			// This theoretically shouldn't be possible, but best to check
+			// anyways. If one of the ready file descriptors is the timer
+			// then we only want to retrieve that one timer source and
+			// ignore the rest. They'll still be ready the next time around.
+			// TODO: does this make sense?
+			if ( pfd.fd == timerfd && pfd.revents == POLLIN )
 				{
-				if ( pfd.revents == pfd.events )
-					ready.insert(entry->second);
-				else if ( pfd.revents == POLLERR ||
-					pfd.revents == POLLHUP ||
-					pfd.revents == POLLNVAL )
-					printf("Source %s returned an error from poll (0x%x)\n",
-						entry->second->Tag(), pfd.revents);
+				uint64_t elapsed;
+				read(timerfd, &elapsed, 8);
+
+				ready.clear();
+				if ( timeout_src )
+					ready.insert(timeout_src);
+				else
+					timer_expired = true;
+				break;
+				}
+			else
+				{
+				auto entry = fd_map.find(pfd.fd);
+				if ( entry != fd_map.end() )
+					{
+					if ( pfd.revents == pfd.events )
+						ready.insert(entry->second);
+					else if ( pfd.revents == POLLNVAL )
+						printf("File descriptor %d was closed during poll()\n", pfd.fd);
+					else if ( pfd.revents == POLLERR || pfd.revents == POLLHUP )
+						printf("Source %s returned an error from poll (0x%x)\n",
+							entry->second->Tag(), pfd.revents);
+					}
 				}
 			}
 		}

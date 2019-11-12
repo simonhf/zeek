@@ -157,6 +157,7 @@ private:
 	std::vector<pollfd> events;
 #endif
 
+	int timerfd = -1;
 	WakeupHandler* wakeup = nullptr;
 };
 
