@@ -26,29 +26,25 @@
 
 using namespace iosource;
 
-Manager::WakeupHandler::WakeupHandler()
+Manager::WakeupHandler::WakeupHandler() : flare()
 	{
-	socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
-	iosource_mgr->RegisterFd(pair[0], this);
+	iosource_mgr->RegisterFd(flare.FD(), this);
 	}
 
 Manager::WakeupHandler::~WakeupHandler()
 	{
-	iosource_mgr->UnregisterFd(pair[0]);
-	close(pair[0]);
-	close(pair[1]);
+	iosource_mgr->UnregisterFd(flare.FD());
 	}
 
 void Manager::WakeupHandler::Process()
 	{
-	char byte;
-	read(pair[0], &byte, 1);
+	flare.Extinguish();
 	}
 
 void Manager::WakeupHandler::Ping(const std::string& where)
 	{
 	DBG_LOG(DBG_MAINLOOP, "Pinging WakeupHandler from %s", where.c_str());
-	write(pair[1], " ", 1);
+	flare.Fire();
 	}
 
 Manager::Manager() : dont_counts(0)

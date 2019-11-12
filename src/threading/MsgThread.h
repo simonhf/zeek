@@ -6,6 +6,7 @@
 #include "BasicThread.h"
 #include "Queue.h"
 #include "iosource/IOSource.h"
+#include "Flare.h"
 
 namespace threading {
 
@@ -319,7 +320,7 @@ private:
 	bool child_finished;	// Child thread is finished.
 	bool failed;	// Set to true when a command failed.
 
-	int ready_pair[2];
+	bro::Flare flare;
 };
 
 /**

@@ -180,19 +180,7 @@ MsgThread::MsgThread() : BasicThread(), queue_in(this, 0), queue_out(0, this)
 	failed = false;
 	thread_mgr->AddMsgThread(this);
 
-	// Open a socket pair used to trigger the iosource loop into processing
-	// new messages on this thread. It's set to non-block because we want to
-	// read out all notifications on every pass without blocking.
-	socketpair(AF_UNIX, SOCK_STREAM, 0, ready_pair);
-	int flags = fcntl(ready_pair[0], F_GETFL);
-	if ( flags != -1 )
-		fcntl(ready_pair[0], F_SETFL, flags | O_NONBLOCK);
-
-	flags = fcntl(ready_pair[0], F_GETFL);
-	if ( flags != -1 )
-		fcntl(ready_pair[1], F_SETFL, flags | O_NONBLOCK);
-
-	iosource_mgr->RegisterFd(ready_pair[0], this);
+	iosource_mgr->RegisterFd(flare.FD(), this);
 
 	SetClosed(false);
 	SetIdle(false);
@@ -200,8 +188,9 @@ MsgThread::MsgThread() : BasicThread(), queue_in(this, 0), queue_out(0, this)
 
 MsgThread::~MsgThread()
 	{
-	close(ready_pair[0]);
-	close(ready_pair[1]);
+	// Unregister this thread from the iosource manager so it doesn't wake
+	// up the main poll anymore.
+	iosource_mgr->UnregisterFd(flare.FD());
 	}
 
 // Set by Bro's main signal handler.
@@ -275,10 +264,6 @@ void MsgThread::OnWaitForStop()
 void MsgThread::OnKill()
 	{
 	SetClosed(true);
-
-	// Unregister this thread from the iosource manager so it doesn't wake
-	// up the main poll anymore.
-	iosource_mgr->UnregisterFd(ready_pair[0]);
 
 	// Send a message to unblock the reader if its currently waiting for
 	// input. This is just an optimization to make it terminate more
@@ -370,7 +355,7 @@ void MsgThread::SendOut(BasicOutputMessage* msg, bool force)
 
 	++cnt_sent_out;
 
-	write(ready_pair[1], " ", 1);
+	flare.Fire();
 	}
 
 BasicOutputMessage* MsgThread::RetrieveOut()
@@ -447,10 +432,7 @@ void MsgThread::GetStats(Stats* stats)
 
 void MsgThread::Process()
 	{
-	// Read out all of the notification bytes since we're going to process all
-	// of the messages that are available.
-	char byte;
-	while ( read(ready_pair[0], &byte, 1) != -1 ) { }
+	flare.Extinguish();
 
 	while ( HasOut() )
 		{

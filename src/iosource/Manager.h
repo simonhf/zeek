@@ -20,6 +20,7 @@
 #include <set>
 
 #include "IOSource.h"
+#include "Flare.h"
 
 namespace iosource {
 
@@ -118,7 +119,7 @@ private:
 		const char* Tag() override { return "WakeupHandler"; }
 
 	private:
-		int pair[2];
+		bro::Flare flare;
 		};
 
 	void Register(PktSrc* src);
