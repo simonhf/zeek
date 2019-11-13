@@ -288,6 +288,8 @@ bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout
 void Manager::InitQueue()
 	{
 	event_queue = kqueue();
+	if ( event_queue == -1 )
+		reporter->FatalError("Failed to initialize kqueue: %s", strerror(errno));
 	}
 
 void Manager::RegisterFd(int fd, IOSource* src)
@@ -300,6 +302,8 @@ void Manager::RegisterFd(int fd, IOSource* src)
 		events.push_back({0, 0, 0, 0, 0, NULL});
 		DBG_LOG(DBG_MAINLOOP, "Registered fd %d from %s", fd, src->Tag());
 		fd_map[fd] = src;
+
+		Wakeup("RegisterFd");
 		}
 	else
 		{
@@ -315,18 +319,12 @@ void Manager::UnregisterFd(int fd)
 		EV_SET(&event, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 		int ret = kevent(event_queue, &event, 1, NULL, 0, NULL);
 		if ( ret != -1 )
-			{
 			DBG_LOG(DBG_MAINLOOP, "Unregistered fd %d", fd);
-			}
-		else
-			{
-			DBG_LOG(DBG_MAINLOOP, "Failed to unregister fd %d: %s", fd, strerror(errno));
-			}
 
 		fd_map.erase(fd);
-		}
 
-	Wakeup("UnregisterFd");
+		Wakeup("UnregisterFd");
+		}
 	}
 
 bool Manager::Poll(std::set<IOSource*>& ready, double timeout, IOSource* timeout_src)
